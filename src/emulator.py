@@ -1,120 +1,70 @@
+"""Эмулятор оболочки UNIX-подобной ОС. Этап 1: REPL."""
 import os
 import socket
-import argparse
 import sys
 
-def get_prompt(current_dir='~'):
-    """Формирует приглашение к вводу на основе данных ОС."""
-    username = os.environ.get('USER') or os.getlogin()
+
+def get_prompt():
+    """Формирует приглашение к вводу на основе данных ОС.
+    
+    Возвращает строку формата username@hostname:~$
+    """
+    username = os.environ.get('USER', 'user')
     hostname = socket.gethostname()
-    return f"{username}@{hostname}:{current_dir}$ "
+    return f"{username}@{hostname}:~$ "
 
-def run_script(script_path, vfs_path):
-    """Выполняет стартовый скрипт, останавливается при первой ошибке."""
-    print(f"\n=== Выполнение скрипта: {script_path} ===")
-    print(f"VFS путь: {vfs_path}\n")
-    
-    if not os.path.exists(script_path):
-        print(f"Ошибка: скрипт '{script_path}' не найден")
-        return False
-    
-    with open(script_path, 'r', encoding='utf-8') as f:
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-            
-            # Пропускаем пустые строки и комментарии
-            if not line or line.startswith('#'):
-                continue
-            
-            # Отображаем ввод (как в реальном терминале)
-            prompt = get_prompt()
-            print(f"{prompt}{line}")
-            
-            # Проверяем ошибку в начале строки
-            if line.startswith(' ') or line.startswith('\t'):
-                print("Ошибка: команда не может начинаться с пробела")
-                return False  # Останавливаемся при ошибке
-            
-            # Парсинг команды
-            parts = line.split()
-            command = parts[0]
-            arguments = parts[1:]
-            
-            # Выполнение команд
-            if command == 'exit':
-                print("Выход из эмулятора")
-                break
-            elif command == 'ls':
-                print(f"[Заглушка] Выполняется 'ls' с аргументами: {arguments}")
-            elif command == 'cd':
-                print(f"[Заглушка] Выполняется 'cd' с аргументами: {arguments}")
-            else:
-                print(f"Ошибка: неизвестная команда '{command}'")
-                return False  # Останавливаемся при ошибке
-    
-    print("\nСкрипт завершён успешно")
-    return True
 
-def interactive_mode(vfs_path):
-    """Интерактивный режим REPL."""
-    print(f"\n=== Интерактивный режим ===")
-    print(f"VFS путь: {vfs_path}\n")
+def parse_input(line):
+
+    parts = line.strip().split()
+    if not parts:
+        return None, []
+    return parts[0], parts[1:]
+
+
+def handle_command(command, arguments):
+   
+    if command == 'exit':
+        return 'exit'
     
-    prompt = get_prompt()
+    if command == 'ls':
+        print(f"ls: {arguments}")
+        return 'ok'
+    
+    if command == 'cd':
+        print(f"cd: {arguments}")
+        return 'ok'
+    
+    print(f"Ошибка: неизвестная команда '{command}'")
+    return 'err'
+
+
+def main():
+    """Главная функция эмулятора. Запускает интерактивный режим."""
+    print("Эмулятор оболочки запущен. Введите 'exit' для выхода.")
     
     while True:
         try:
-            user_input = input(prompt)
+            prompt = get_prompt()
+            line = input(prompt)
         except (EOFError, KeyboardInterrupt):
-            print()
+            print("\nВыход из эмулятора")
             break
         
-        # Проверка на пробел в начале
-        if user_input.startswith(' ') or user_input.startswith('\t'):
-            print("Ошибка: команда не может начинаться с пробела")
+        if not line.strip():
             continue
         
-        if not user_input.strip():
+        command, arguments = parse_input(line)
+        
+        if command is None:
             continue
         
-        # Парсер
-        parts = user_input.split()
-        command = parts[0]
-        arguments = parts[1:]
+        status = handle_command(command, arguments)
         
-        # Обработка команд
-        if command == 'exit':
+        if status == 'exit':
+            print("Выход из эмулятора")
             break
-        elif command == 'ls':
-            print(f"[Заглушка] Выполняется 'ls' с аргументами: {arguments}")
-        elif command == 'cd':
-            print(f"[Заглушка] Выполняется 'cd' с аргументами: {arguments}")
-        else:
-            print(f"Ошибка: неизвестная команда '{command}'")
 
-def main():
-    # Парсинг аргументов командной строки
-    parser = argparse.ArgumentParser(description='Эмулятор оболочки UNIX')
-    parser.add_argument('--vfs', type=str, default='./vfs',
-                        help='Путь к физическому расположению VFS')
-    parser.add_argument('--script', type=str, default=None,
-                        help='Путь к стартовому скрипту')
-    
-    args = parser.parse_args()
-    
-    # Отладочный вывод параметров
-    
-    print("Параметры эмулятора:")
-    print(f"  VFS путь: {os.path.abspath(args.vfs)}")
-    print(f"  Скрипт: {args.script if args.script else 'не указан (интерактивный режим)'}")
-    
-    
-    
-    if args.script:
-        success = run_script(args.script, args.vfs)
-        sys.exit(0 if success else 1)
-    else:
-        interactive_mode(args.vfs)
 
 if __name__ == "__main__":
     main()
