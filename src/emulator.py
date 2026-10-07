@@ -1,4 +1,4 @@
-"""Эмулятор оболочки UNIX-подобной ОС. Этап 4: основные команды."""
+"""Эмулятор оболочки UNIX-подобной ОС. Этап 5: дополнительные команды."""
 import os
 import io
 import sys
@@ -88,6 +88,15 @@ class VFS:
         """Возвращает содержимое файла как текст UTF-8."""
         return self.read_bytes(path).decode('utf-8', errors='replace')
 
+    def add_file(self, path, content_b64):
+        """Добавляет или перезаписывает файл в памяти."""
+        self.files[path] = content_b64
+        self._add_parents(path)
+
+    def remove_dir(self, path):
+        """Удаляет каталог из памяти."""
+        self.dirs.discard(path)
+
 
 class Shell:
     """Оболочка: хранит текущий каталог и выполняет команды."""
@@ -117,6 +126,8 @@ class Shell:
             'date': self.cmd_date,
             'whoami': self.cmd_whoami,
             'du': self.cmd_du,
+            'cp': self.cmd_cp,
+            'rmdir': self.cmd_rmdir,
         }
         handler = commands.get(cmd)
         if handler is None:
@@ -228,13 +239,52 @@ class Shell:
                 total += self._dir_size(item_path)
         return total
 
+    def cmd_cp(self, args):
+        """Копирует файл внутри VFS (изменения только в памяти)."""
+        exact_args = 2
+        if len(args) != exact_args:
+            print('Ошибка: cp: нужны ровно два аргумента')
+            return 'err'
+        src = self.vfs.resolve(args[0], self.cwd)
+        dst = self.vfs.resolve(args[1], self.cwd)
+        if not self.vfs.is_file(src):
+            print(f"Ошибка: cp: '{args[0]}': нет такого файла")
+            return 'err'
+        if self.vfs.is_dir(dst):
+            name = src.rsplit('/', 1)[-1]
+            dst = posixpath.join(dst, name)
+        self.vfs.add_file(dst, self.vfs.files[src])
+        print(f'Скопировано: {src} -> {dst}')
+        return 'ok'
+
+    def cmd_rmdir(self, args):
+        """Удаляет пустой каталог из VFS (изменения только в памяти)."""
+        exact_args = 1
+        if len(args) != exact_args:
+            print('Ошибка: rmdir: нужен ровно один аргумент')
+            return 'err'
+        path = self.vfs.resolve(args[0], self.cwd)
+        if not self.vfs.is_dir(path):
+            print(f"Ошибка: rmdir: '{args[0]}': нет такого каталога")
+            return 'err'
+        root = '/'
+        if path == root:
+            print("Ошибка: rmdir: нельзя удалить корневой каталог")
+            return 'err'
+        if self.vfs.listdir(path):
+            print(f"Ошибка: rmdir: '{args[0]}': каталог не пуст")
+            return 'err'
+        self.vfs.remove_dir(path)
+        print(f'Удалён каталог: {path}')
+        return 'ok'
+
 
 def run_script(shell, script_path):
     """Выполняет стартовый скрипт, останавливаясь на ошибке."""
     if not os.path.exists(script_path):
         print(f"Ошибка: скрипт '{script_path}' не найден")
         return False
-    print(f'=== Выполнение скрипта: {script_path} ===')
+    print(f'Выполнение скрипта: {script_path} ===')
     with open(script_path, 'r', encoding='utf-8') as fh:
         for line in fh:
             line = line.rstrip('\n')
@@ -268,7 +318,7 @@ def interactive(shell):
 
 def print_parameters(args, vfs):
     """Выводит отладочную информацию о параметрах запуска."""
-
+   
     print('Параметры эмулятора:')
     print(f'  VFS (ZIP): {os.path.abspath(args.vfs)}')
     print(f'  Файлов в VFS: {len(vfs.files)}')
@@ -287,7 +337,7 @@ def show_motd(vfs):
 def main():
     """Точка входа: парсит аргументы и запускает эмулятор."""
     parser = argparse.ArgumentParser(
-        description='Эмулятор оболочки UNIX (этап 4: команды)'
+        description='Эмулятор оболочки UNIX (этап 5: cp, rmdir)'
     )
     parser.add_argument('--vfs', default='vfs.zip',
                         help='Путь к ZIP-архиву VFS')

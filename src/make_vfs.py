@@ -1,4 +1,3 @@
-"""Служебная утилита: создаёт тестовые ZIP-архивы VFS."""
 import base64
 import sys
 import zipfile
@@ -25,6 +24,8 @@ VFS_DEEP = {
     'docs/reports/2026/q2.txt': 'Отчёт за 2 квартал: в процессе.\n',
     'home/user/settings.conf': 'theme=dark\nlang=ru\n',
     'home/user/bin/logo.bin': base64.b64decode(LOGO_B64),
+    'empty_dir/': b'',
+    'tmp/': b'',
 }
 
 VARIANTS = {
@@ -35,14 +36,15 @@ VARIANTS = {
 
 
 def build(name, structure):
-    """Создаёт ZIP-архив VFS из словаря structure."""
+    
     with zipfile.ZipFile(name, 'w', zipfile.ZIP_DEFLATED) as arc:
         for path, content in structure.items():
             data = content
             if isinstance(data, str):
                 data = data.encode('utf-8')
             arc.writestr(path, data)
-    print(f'Создан архив {name} ({len(structure)} файлов)')
+    msg = f'Создан архив {name} ({len(structure)} элементов)'
+    print(msg)
 
 
 if __name__ == '__main__':
