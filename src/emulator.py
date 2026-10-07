@@ -1,4 +1,4 @@
-"""Эмулятор оболочки UNIX-подобной ОС. Этап 3: VFS."""
+"""Эмулятор оболочки UNIX-подобной ОС. Этап 4: основные команды."""
 import os
 import io
 import sys
@@ -6,7 +6,13 @@ import base64
 import zipfile
 import posixpath
 import socket
+import datetime
 import argparse
+
+
+def get_username():
+    """Возвращает имя текущего пользователя ОС."""
+    return os.environ.get('USER') or os.getlogin()
 
 
 class VFS:
@@ -93,9 +99,8 @@ class Shell:
 
     def prompt(self):
         """Формирует приглашение ввода на основе данных ОС."""
-        user = os.environ.get('USER', 'user')
         host = socket.gethostname()
-        return f"{user}@{host}:{self.cwd}$ "
+        return f"{get_username()}@{host}:{self.cwd}$ "
 
     def execute(self, line):
         """Выполняет команду. Возвращает 'ok', 'err' или 'exit'."""
@@ -109,6 +114,9 @@ class Shell:
             'ls': self.cmd_ls,
             'cd': self.cmd_cd,
             'cat': self.cmd_cat,
+            'date': self.cmd_date,
+            'whoami': self.cmd_whoami,
+            'du': self.cmd_du,
         }
         handler = commands.get(cmd)
         if handler is None:
@@ -172,13 +180,61 @@ class Shell:
         print()
         return 'ok'
 
+    def cmd_date(self, args):
+        """Выводит текущие дату и время."""
+        max_args = 0
+        if len(args) > max_args:
+            print('Ошибка: date: лишние аргументы')
+            return 'err'
+        fmt = '%a %b %d %H:%M:%S %Y'
+        print(datetime.datetime.now().strftime(fmt))
+        return 'ok'
+
+    def cmd_whoami(self, args):
+        """Выводит имя текущего пользователя ОС."""
+        max_args = 0
+        if len(args) > max_args:
+            print('Ошибка: whoami: лишние аргументы')
+            return 'err'
+        print(get_username())
+        return 'ok'
+
+    def cmd_du(self, args):
+        """Выводит размер файла или суммарный размер каталога."""
+        max_args = 1
+        if len(args) > max_args:
+            print('Ошибка: du: слишком много аргументов')
+            return 'err'
+        path = self.vfs.resolve(args[0], self.cwd) if args else self.cwd
+        if self.vfs.is_file(path):
+            size = len(self.vfs.read_bytes(path))
+            print(f'{size}\t{path}')
+            return 'ok'
+        if self.vfs.is_dir(path):
+            print(f'{self._dir_size(path)}\t{path}')
+            return 'ok'
+        target = args[0] if args else path
+        print(f"Ошибка: du: '{target}': нет такого файла или каталога")
+        return 'err'
+
+    def _dir_size(self, path):
+        """Рекурсивно вычисляет суммарный размер файлов каталога."""
+        total = 0
+        for item in self.vfs.listdir(path):
+            item_path = self.vfs.resolve(item, path)
+            if self.vfs.is_file(item_path):
+                total += len(self.vfs.read_bytes(item_path))
+            elif self.vfs.is_dir(item_path):
+                total += self._dir_size(item_path)
+        return total
+
 
 def run_script(shell, script_path):
     """Выполняет стартовый скрипт, останавливаясь на ошибке."""
     if not os.path.exists(script_path):
         print(f"Ошибка: скрипт '{script_path}' не найден")
         return False
-    print(f' Выполнение скрипта: {script_path} ===')
+    print(f'=== Выполнение скрипта: {script_path} ===')
     with open(script_path, 'r', encoding='utf-8') as fh:
         for line in fh:
             line = line.rstrip('\n')
@@ -212,6 +268,7 @@ def interactive(shell):
 
 def print_parameters(args, vfs):
     """Выводит отладочную информацию о параметрах запуска."""
+
     print('Параметры эмулятора:')
     print(f'  VFS (ZIP): {os.path.abspath(args.vfs)}')
     print(f'  Файлов в VFS: {len(vfs.files)}')
@@ -230,7 +287,7 @@ def show_motd(vfs):
 def main():
     """Точка входа: парсит аргументы и запускает эмулятор."""
     parser = argparse.ArgumentParser(
-        description='Эмулятор оболочки UNIX (этап 3: VFS)'
+        description='Эмулятор оболочки UNIX (этап 4: команды)'
     )
     parser.add_argument('--vfs', default='vfs.zip',
                         help='Путь к ZIP-архиву VFS')
